@@ -275,7 +275,7 @@ OR UPPER(gtr.karyotypearrayresult) LIKE UPPER('%'||pm.surname||'%')
 OR UPPER(gtr.karyotypearrayresult) LIKE UPPER('%'||pm.surnameatbirth||'%')) q8
 ON q7.patient_id=q8.patient_id
 /* 
- * The ninth query table identifies cases in which the genetictest.clinicalindication is termination for anomoly 
+ * The ninth query table identifies cases in which the genetictest.clinicalindication is termination for anomaly 
  * but the b.outcome was not termination. 
  */
 FULL OUTER JOIN
