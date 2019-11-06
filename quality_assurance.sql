@@ -7,13 +7,14 @@
  * query table is linked to the previous using the patient id. 
  */
 SELECT COALESCE (q1.patient_id, q2.patient_id, q3.patient_id, q4.patient_id, q5.patient_id, q6.patient_id, 
-q7.patient_id, q8.patient_id, q9.patient_id, q10.patient_id) AS id_patient, MAX(q1.missing_sex) AS missing_sex, 
-MAX(q2.missing_test_type) AS missing_test_type, MAX(q3.missing_indication_category) AS 
+q7.patient_id, q8.patient_id, q9.patient_id, q10.patient_id, q11.patient_id) AS id_patient, MAX(q1.missing_sex) 
+AS missing_sex, MAX(q2.missing_test_type) AS missing_test_type, MAX(q3.missing_indication_category) AS 
 missing_indication_category, MAX(q4.implausible_antenatal_sample) AS implausible_antenatal_sample, 
 MAX(q5.implausible_postnatal_sample) AS implausible_postnatal_sample, MAX(q6.erroneous_test_status) AS 
 erroneous_test_status, MAX(q7.implausible_indication_category) AS implausible_indication_category, 
-MAX(q8.PID_in_karyotpe_result), MAX(q9.indication_of_TOP_not_outcome), MAX(q10.missing_vital_status)
-AS PID_in_karyotype_result
+MAX(q8.PID_in_karyotpe_result) AS PID_in_karyotype_result, MAX(q9.indication_of_TOP_not_outcome) AS 
+indication_of_TOP_not_outcome, MAX(q10.missing_vital_status) AS missing_vital_status, 
+MAX(q11.missing_karyotyping_method) AS missing_karyotyping_method
 FROM
 /* 
  * The first query table identifies cases with null patient.sex fields for which it may be possible to interpret 
@@ -302,5 +303,18 @@ LEFT JOIN springmvc3.baby b ON p.patientid= b.patientid
 WHERE b.deathdiagnoseddate IS NOT NULL 
 AND(p.vitalstatus != 'D' OR p.vitalstatus IS NULL)) q10
 ON q9.patient_id=q10.patient_id
+/* 
+ * Script to identify cases which have a null genetictest.karyotypingmethod field for which the 
+ * genetictest.genetictestscope field indicates that a gene panel was performed (Sequencing, NGS). 
+ */
+FULL OUTER JOIN
+(SELECT DISTINCT p.patientid AS patient_id, gt.karyotypingmethod AS karyotyping_method, gt.genetictestscope AS 
+genetic_test_scope, '1' AS missing_karyotyping_method
+FROM springmvc3.genetictest gt
+LEFT JOIN springmvc3.event e ON gt.genetictestid=e.eventid
+LEFT JOIN springmvc3.patient p ON e.patientid=p.patientid
+WHERE gt.karyotypingmethod IS NULL  
+AND UPPER(gt.genetictestscope) LIKE '%PANEL%') q11
+ON q10.patient_id=q11.patient_id
 GROUP BY id_patient 
 ORDER BY id_patient
