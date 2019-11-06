@@ -7,11 +7,12 @@
  * query table is linked to the previous using the patient id. 
  */
 SELECT COALESCE (q1.patient_id, q2.patient_id, q3.patient_id, q4.patient_id, q5.patient_id, q6.patient_id, 
-q7.patient_id, q8.patient_id) AS id_patient, MAX(q1.missing_sex) AS missing_sex, MAX(q2.missing_test_type) 
-AS missing_test_type, MAX(q3.missing_indication_category) AS missing_indication_category, 
+q7.patient_id, q8.patient_id, q9.patient_id) AS id_patient, MAX(q1.missing_sex) AS missing_sex, 
+MAX(q2.missing_test_type) AS missing_test_type, MAX(q3.missing_indication_category) AS missing_indication_category, 
 MAX(q4.implausible_antenatal_sample) AS implausible_antenatal_sample, MAX(q5.implausible_postnatal_sample) 
 AS implausible_postnatal_sample, MAX(q6.erroneous_test_status) AS erroneous_test_status, 
-MAX(q7.implausible_indication_category) AS implausible_indication_category, MAX(q8.PID_in_karyotpe_result) 
+MAX(q7.implausible_indication_category) AS implausible_indication_category, MAX(q8.PID_in_karyotpe_result),
+MAX(q9.indication_of_TOP_not_outcome)
 AS PID_in_karyotype_result
 FROM
 /* 
@@ -273,5 +274,20 @@ OR UPPER(gtr.karyotypearrayresult) LIKE UPPER('%'||pm.forename||'%')
 OR UPPER(gtr.karyotypearrayresult) LIKE UPPER('%'||pm.surname||'%') 
 OR UPPER(gtr.karyotypearrayresult) LIKE UPPER('%'||pm.surnameatbirth||'%')) q8
 ON q7.patient_id=q8.patient_id
+/* 
+ * The ninth query table identifies cases in which the genetictest.clinicalindication is termination for anomoly 
+ * but the b.outcome was not termination. 
+ */
+FULL OUTER JOIN
+(SELECT DISTINCT p.patientid AS patient_id, gt.clinicalindication AS clinical_indication_category, b.outcome 
+AS outcome, '1' AS indication_of_TOP_not_outcome
+FROM springmvc3.genetictest gt  
+LEFT JOIN springmvc3.event e ON gt.genetictestid=e.eventid
+LEFT JOIN springmvc3.patient p ON e.patientid=p.patientid
+LEFT JOIN springmvc3.baby b ON p.patientid=b.patientid
+WHERE b.outcome != 4
+AND (UPPER(gt.clinicalindication) LIKE '%TOP %'
+OR UPPER(gt.clinicalindication) LIKE '%TERMINATION%')) q9
+ON q8.patient_id=q9.patient_id
 GROUP BY id_patient 
 ORDER BY id_patient
