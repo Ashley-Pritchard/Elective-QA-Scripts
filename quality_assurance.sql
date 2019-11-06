@@ -7,12 +7,12 @@
  * query table is linked to the previous using the patient id. 
  */
 SELECT COALESCE (q1.patient_id, q2.patient_id, q3.patient_id, q4.patient_id, q5.patient_id, q6.patient_id, 
-q7.patient_id, q8.patient_id, q9.patient_id) AS id_patient, MAX(q1.missing_sex) AS missing_sex, 
-MAX(q2.missing_test_type) AS missing_test_type, MAX(q3.missing_indication_category) AS missing_indication_category, 
-MAX(q4.implausible_antenatal_sample) AS implausible_antenatal_sample, MAX(q5.implausible_postnatal_sample) 
-AS implausible_postnatal_sample, MAX(q6.erroneous_test_status) AS erroneous_test_status, 
-MAX(q7.implausible_indication_category) AS implausible_indication_category, MAX(q8.PID_in_karyotpe_result),
-MAX(q9.indication_of_TOP_not_outcome)
+q7.patient_id, q8.patient_id, q9.patient_id, q10.patient_id) AS id_patient, MAX(q1.missing_sex) AS missing_sex, 
+MAX(q2.missing_test_type) AS missing_test_type, MAX(q3.missing_indication_category) AS 
+missing_indication_category, MAX(q4.implausible_antenatal_sample) AS implausible_antenatal_sample, 
+MAX(q5.implausible_postnatal_sample) AS implausible_postnatal_sample, MAX(q6.erroneous_test_status) AS 
+erroneous_test_status, MAX(q7.implausible_indication_category) AS implausible_indication_category, 
+MAX(q8.PID_in_karyotpe_result), MAX(q9.indication_of_TOP_not_outcome), MAX(q10.missing_vital_status)
 AS PID_in_karyotype_result
 FROM
 /* 
@@ -290,5 +290,17 @@ AND (UPPER(gt.clinicalindication) LIKE '%TOP %'
 OR UPPER(gt.clinicalindication) LIKE '%TERMINATION%'
 OR gt.indicationcategory = 17)) q9
 ON q8.patient_id=q9.patient_id
+/* 
+ * The tenth query identifies cases which have a death date (baby.deathdiagnoseddate) but for which the vital 
+ * status (p.vitalstatus) has not been recorded as dead. 
+ */
+FULL OUTER JOIN
+(SELECT DISTINCT p.patientid AS patient_id, b.deathdiagnoseddate AS date_of_death_baby, p.vitalstatus AS 
+vital_status, '1' AS missing_vital_status
+FROM springmvc3.patient p
+LEFT JOIN springmvc3.baby b ON p.patientid= b.patientid
+WHERE b.deathdiagnoseddate IS NOT NULL 
+AND(p.vitalstatus != 'D' OR p.vitalstatus IS NULL)) q10
+ON q9.patient_id=q10.patient_id
 GROUP BY id_patient 
 ORDER BY id_patient
