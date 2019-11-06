@@ -279,15 +279,16 @@ ON q7.patient_id=q8.patient_id
  * but the b.outcome was not termination. 
  */
 FULL OUTER JOIN
-(SELECT DISTINCT p.patientid AS patient_id, gt.clinicalindication AS clinical_indication_category, b.outcome 
-AS outcome, '1' AS indication_of_TOP_not_outcome
+(SELECT DISTINCT p.patientid AS patient_id, gt.indicationcategory AS indication_category, gt.clinicalindication 
+AS clinical_indication_category, b.outcome AS outcome, '1' AS indication_of_TOP_not_outcome
 FROM springmvc3.genetictest gt  
 LEFT JOIN springmvc3.event e ON gt.genetictestid=e.eventid
 LEFT JOIN springmvc3.patient p ON e.patientid=p.patientid
 LEFT JOIN springmvc3.baby b ON p.patientid=b.patientid
 WHERE b.outcome != 4
 AND (UPPER(gt.clinicalindication) LIKE '%TOP %'
-OR UPPER(gt.clinicalindication) LIKE '%TERMINATION%')) q9
+OR UPPER(gt.clinicalindication) LIKE '%TERMINATION%'
+OR gt.indicationcategory = 17)) q9
 ON q8.patient_id=q9.patient_id
 GROUP BY id_patient 
 ORDER BY id_patient
