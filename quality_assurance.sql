@@ -1,30 +1,36 @@
 /* The following script runs a number of quality control queries on the CARA database. The output of the script
  * is a table showing the result for each query per patient id. If a case has been flagged by a query, and 
- * therefore action is required, the field will read '1'. Otherwise the field will be null. 
+ * therefore action is required, the field will read '1'. Otherwise the field will be null. Note that a single 
+ * patient can have more than one genetic test / pregnancy etc. If any attribute of the patient is flagged by a 
+ * query, a '1' will show for that query aside the patient case in the output table. In most cases, it should be 
+ * straight forward for registration staff to find the record which requires ammending. However, the individual 
+ * query scipts can be run if more information about a specific patient case is required. These scripts have 
+ * been designed to run with no filters, using a date range and for individual patiend_ids as required.  
  */
 /* The patient id and result column from each query table (created below) is selected. The patient ids are
  * coalesced and later grouped so one row identifies all issues with a single case. Throughout the script, each
- * query table is linked to the previous using the patient id. 
+ * query table is linked to the previous using the patient id. The final completed table is selected as 'qa' so 
+ * it can be filtered by date. 
  */
-SELECT COALESCE (q1.patient_id, q2.patient_id, q3.patient_id, q4.patient_id, q5.patient_id, q6.patient_id, 
-q7.patient_id, q8.patient_id, q9.patient_id, q10.patient_id, q11.patient_id) AS id_patient, MAX(q1.missing_sex) 
-AS missing_sex, MAX(q2.missing_test_type) AS missing_test_type, MAX(q3.missing_indication_category) AS 
-missing_indication_category, MAX(q4.implausible_antenatal_sample) AS implausible_antenatal_sample, 
-MAX(q5.implausible_postnatal_sample) AS implausible_postnatal_sample, MAX(q6.erroneous_test_status) AS 
-erroneous_test_status, MAX(q7.implausible_indication_category) AS implausible_indication_category, 
-MAX(q8.PID_in_karyotpe_result) AS PID_in_karyotype_result, MAX(q9.indication_of_TOP_not_outcome) AS 
-indication_of_TOP_not_outcome, MAX(q10.missing_vital_status) AS missing_vital_status, 
-MAX(q11.missing_karyotyping_method) AS missing_karyotyping_method
+SELECT * FROM (SELECT COALESCE (q1.patient_id, q2.patient_id, q3.patient_id, q4.patient_id, q5.patient_id, q6.patient_id, 
+q7.patient_id, q8.patient_id, q9.patient_id, q10.patient_id, q11.patient_id) AS id_patient, COALESCE 
+(q1.patient_DOB, q2.patient_DOB, q3.patient_DOB, q4.patient_DOB, q5.patient_DOB, q6.patient_DOB, 
+q7.patient_DOB, q8.patient_DOB, q9.patient_DOB, q10.patient_DOB, q11.patient_DOB) AS dob_patient, 
+MAX(q1.missing_sex) AS missing_sex, MAX(q2.missing_test_type) AS missing_test_type, 
+MAX(q3.missing_indication_category) AS missing_indication_category, MAX(q4.implausible_antenatal_sample) AS 
+implausible_antenatal_sample, MAX(q5.implausible_postnatal_sample) AS implausible_postnatal_sample, 
+MAX(q6.erroneous_test_status) AS erroneous_test_status, MAX(q7.implausible_indication_category) AS 
+implausible_indication_category, MAX(q8.PID_in_karyotpe_result) AS PID_in_karyotype_result, 
+MAX(q9.indication_of_TOP_not_outcome) AS indication_of_TOP_not_outcome, MAX(q10.missing_vital_status) AS 
+missing_vital_status, MAX(q11.missing_karyotyping_method) AS missing_karyotyping_method
 FROM
 /* 
  * The first query table identifies cases with null patient.sex fields for which it may be possible to interpret 
  * patient sex using information from the genetictestresult.karyotypearrayresult, genetictest.clinicalindication 
- * or genetictestresult.report fields. Note that some individuals who have had cyto tests as adults have been 
- * classed as 'babies' in the system. As such, birth dates which pre-date 2013 (the current cyto cut off) have 
- * been filtered out.
+ * or genetictestresult.report fields.  
  */
-(SELECT DISTINCT p.patientid AS patient_id, p.sex AS sex, gtr.karyotypearrayresult AS karyotype_result, 
-gt.clinicalindication AS clinical_indication, gtr.report AS report_comments, '1' AS missing_sex
+(SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, p.sex AS sex, gtr.karyotypearrayresult AS 
+karyotype_result, gt.clinicalindication AS clinical_indication, gtr.report AS report_comments, '1' AS missing_sex
 FROM analysiscara.avc_genetictest gt
 LEFT JOIN analysiscara.avc_genetictestresult gtr ON gt.genetictestid=gtr.genetictestid
 LEFT JOIN springmvc3.patient p ON p.patientid=gt.patientid
@@ -53,9 +59,7 @@ OR UPPER(gtr.report) LIKE '%DYZ3%'
 OR UPPER(gtr.report) LIKE '%,X%'
 OR UPPER(gtr.report) LIKE '%MALE%'
 OR UPPER(gtr.report) LIKE '%FEMALE%')
-AND p.sex IS NULL 
-AND (p.birthdate1 > '2012-12-31'
-OR p.birthdate1 IS NULL)) q1
+AND p.sex IS NULL) q1
 /* 
  * The second query table identifies null testresult.testtype fields for which it may be possible to interpret
  * the test type using information from the ultrasoundmarker.code, testresult.report or event.comments fields. 
@@ -63,8 +67,8 @@ OR p.birthdate1 IS NULL)) q1
  * was performed - could go down as ultrasound other.
  */
 FULL OUTER JOIN 
-(SELECT DISTINCT p.patientid AS patient_id, tr.report AS report_test_details, e.comments AS event_comments, 
-um.code AS ultrasound_marker_code, tr.testtype AS test_type, '1' missing_test_type
+(SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, tr.testtype AS test_type, tr.report AS 
+report_test_details, e.comments AS event_comments, um.code AS ultrasound_marker_code, '1' missing_test_type
 FROM springmvc3.testresult tr
 LEFT JOIN springmvc3.event e ON tr.testresultid=e.eventid
 LEFT JOIN springmvc3.patient p ON p.patientid=e.patientid 
@@ -125,8 +129,8 @@ ON q1.patient_id=q2.patient_id
  * entries could be completed as 'code 13 - other'.
  */
 FULL OUTER JOIN
-(SELECT DISTINCT p.patientid AS patient_id, gt.indicationcategory AS indication_category, gt.clinicalindication 
-AS clinical_indication, '1' AS missing_indication_category
+(SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, gt.indicationcategory AS 
+indication_category, gt.clinicalindication, '1' AS missing_indication_category
 FROM springmvc3.genetictest gt
 LEFT JOIN springmvc3.event e ON gt.genetictestid=e.eventid
 LEFT JOIN springmvc3.patient p ON e.patientid=p.patientid
@@ -167,12 +171,13 @@ AND gt.indicationcategory IS NULL) q3
 ON q2.patient_id=q3.patient_id
 /* 
  * The fourth query table identifies cases that state that an antenatal sample was collected or recieved after 
- * the birth of the baby. As above, births dates pre-2013 have been filtered out.
+ * the birth of the baby. Note that in a small number of cases (~1%), an anenatal sample type has been recorded 
+ * against parental / adult relative tests.
  */
 FULL OUTER JOIN  
-(SELECT DISTINCT p.patientid AS patient_id, gt.specimentype AS specimen_type, p.birthdate1 AS baby_date_of_birth, 
-gt.collecteddate AS date_sample_collected, gt.receiveddate AS date_sample_received, '1' AS 
-implausible_antenatal_sample
+(SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 as patient_dob, gt.collecteddate AS 
+date_sample_collected, gt.receiveddate AS date_sample_received, gt.specimentype AS specimen_type, 
+gt.clinicalindication AS clinical_indication, '1' AS implausible_antenatal_sample
 FROM springmvc3.genetictest gt
 LEFT JOIN springmvc3.event e ON gt.genetictestid=e.eventid 
 LEFT JOIN springmvc3.patient p ON e.patientid=p.patientid
@@ -181,17 +186,17 @@ OR gt.specimentype = 2
 OR gt.specimentype = 3
 OR gt.specimentype = 4)
 AND (gt.collecteddate > p.birthdate1
-OR gt.receiveddate > p.birthdate1)
-AND p.birthdate1 > '2012-12-31') q4
+OR gt.receiveddate > p.birthdate1)) q4
 ON q3.patient_id=q4.patient_id
 /* 
  * The fifth query table identifies cases that state that a postnatal sample was collected, recieved or 
- * authorised before the birth of the baby. As above, births dates pre-2013 have been filtered out.
+ * authorised before the birth of the baby. As above, if the script is not filtered by date below, there may be 
+ * some adult contamination.
  */
 FULL OUTER JOIN  
-(SELECT DISTINCT p.patientid AS patient_id, gt.specimentype AS specimen_type, p.birthdate1 AS baby_date_of_birth, 
-gt.collecteddate AS date_sample_collected, gt.receiveddate AS date_sample_received, '1' 
-AS implausible_postnatal_sample
+(SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 as patient_dob, gt.collecteddate AS 
+date_sample_collected, gt.receiveddate AS date_sample_received, gt.specimentype AS specimen_type,'1' AS 
+implausible_postnatal_sample
 FROM springmvc3.genetictest gt
 LEFT JOIN springmvc3.event e ON gt.genetictestid=e.eventid 
 LEFT JOIN springmvc3.patient p ON p.patientid=e.patientid 
@@ -206,16 +211,15 @@ OR gt.specimentype = 19
 OR gt.specimentype = 23)
 AND (gt.collecteddate < p.birthdate1
 OR gt.receiveddate < p.birthdate1
-OR gt.authoriseddate < p.birthdate1)
-AND p.birthdate1 > '2012-12-31') q5
+OR gt.authoriseddate < p.birthdate1)) q5
 ON q4.patient_id=q5.patient_id
 /* 
  * The sixth query table identifies cases in which the genetictestresult.karyotypearrayresult is normal but the 
  * genetictestresult.teststatus is recorded as either abnormal or null 
  */ 
 FULL OUTER JOIN 
-(SELECT DISTINCT p.patientid AS patient_id, gtr.teststatus AS test_status, gtr.karyotypearrayresult AS 
-karyotype_result, '1' AS erroneous_test_status
+(SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, gtr.teststatus AS test_status, 
+gtr.karyotypearrayresult AS karyotype_result, '1' AS erroneous_test_status
 FROM analysiscara.avc_genetictest gt
 LEFT JOIN analysiscara.avc_genetictestresult gtr ON gt.genetictestid=gtr.genetictestid
 LEFT JOIN springmvc3.patient p ON p.patientid=gt.patientid
@@ -240,8 +244,9 @@ ON q5.patient_id=q6.patient_id
  * phenotype' but the baby was not live born.
  */
 FULL OUTER JOIN  
-(SELECT DISTINCT p.patientid AS patient_id, gt.indicationcategory AS indication_category, gt.clinicalindication 
-AS clinical_indication_category, b.outcome AS outcome, '1' AS implausible_indication_category
+(SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, gt.indicationcategory AS 
+indication_category, gt.clinicalindication AS clinical_indication_category, b.outcome AS outcome, '1' AS 
+implausible_indication_category
 FROM springmvc3.genetictest gt  
 LEFT JOIN springmvc3.event e ON gt.genetictestid=e.eventid
 LEFT JOIN springmvc3.patient p ON e.patientid=p.patientid
@@ -256,10 +261,10 @@ ON q6.patient_id=q7.patient_id
  * Personal Identifiers (PID) for removal
  */
 FULL OUTER JOIN 
-(SELECT DISTINCT pb.patientid AS patient_id, gtr.genetictestresultid AS genetic_test_result, 
-gtr.karyotypearrayresult AS karyotype_result, pb.forename AS baby_forename, pb.surname AS baby_surname, 
-pb.surnameatbirth AS baby_surname_at_birth, pm.forename AS mum_forename, pm.surname AS mum_surname, 
-pm.surnameatbirth AS mum_surname_at_birth, '1' AS PID_in_karyotpe_result
+(SELECT DISTINCT pb.patientid AS patient_id, pb.birthdate1 AS patient_dob, gtr.karyotypearrayresult AS 
+karyotype_result, pb.forename AS baby_forename, pb.surname AS baby_surname, pb.surnameatbirth AS 
+baby_surname_at_birth, pm.forename AS mum_forename, pm.surname AS mum_surname, pm.surnameatbirth AS 
+mum_surname_at_birth, '1' AS PID_in_karyotpe_result
 FROM springmvc3.genetictestresult gtr
 LEFT JOIN springmvc3.genetictest gt ON gtr.genetictestid=gt.genetictestid
 LEFT JOIN springmvc3.event e ON gt.genetictestid=e.eventid
@@ -280,8 +285,9 @@ ON q7.patient_id=q8.patient_id
  * but the b.outcome was not termination. 
  */
 FULL OUTER JOIN
-(SELECT DISTINCT p.patientid AS patient_id, gt.indicationcategory AS indication_category, gt.clinicalindication 
-AS clinical_indication_category, b.outcome AS outcome, '1' AS indication_of_TOP_not_outcome
+(SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, gt.indicationcategory AS 
+indication_category, gt.clinicalindication AS clinical_indication_category, b.outcome AS outcome, '1' AS 
+indication_of_TOP_not_outcome
 FROM springmvc3.genetictest gt  
 LEFT JOIN springmvc3.event e ON gt.genetictestid=e.eventid
 LEFT JOIN springmvc3.patient p ON e.patientid=p.patientid
@@ -296,8 +302,8 @@ ON q8.patient_id=q9.patient_id
  * status (p.vitalstatus) has not been recorded as dead. 
  */
 FULL OUTER JOIN
-(SELECT DISTINCT p.patientid AS patient_id, b.deathdiagnoseddate AS date_of_death_baby, p.vitalstatus AS 
-vital_status, '1' AS missing_vital_status
+(SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, b.deathdiagnoseddate AS 
+date_of_death_baby, p.vitalstatus AS vital_status, '1' AS missing_vital_status
 FROM springmvc3.patient p
 LEFT JOIN springmvc3.baby b ON p.patientid= b.patientid
 WHERE b.deathdiagnoseddate IS NOT NULL 
@@ -308,13 +314,20 @@ ON q9.patient_id=q10.patient_id
  * genetictest.genetictestscope field indicates that a gene panel was performed (Sequencing, NGS). 
  */
 FULL OUTER JOIN
-(SELECT DISTINCT p.patientid AS patient_id, gt.karyotypingmethod AS karyotyping_method, gt.genetictestscope AS 
-genetic_test_scope, '1' AS missing_karyotyping_method
+(SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, gt.karyotypingmethod AS 
+karyotyping_method, gt.genetictestscope AS genetic_test_scope, '1' AS missing_karyotyping_method
 FROM springmvc3.genetictest gt
 LEFT JOIN springmvc3.event e ON gt.genetictestid=e.eventid
 LEFT JOIN springmvc3.patient p ON e.patientid=p.patientid
 WHERE gt.karyotypingmethod IS NULL  
 AND UPPER(gt.genetictestscope) LIKE '%PANEL%') q11
 ON q10.patient_id=q11.patient_id
-GROUP BY id_patient 
-ORDER BY id_patient
+GROUP BY id_patient, dob_patient) AS qa
+/* 
+ * The fully joined table of query outputs has been selected using 'qa' as an alias. This table can now be 
+ * filtered by a date range and ordered by patient id. Change the date range as appropropriate for analysis. 
+ */
+WHERE (qa.dob_patient > '2016-12-31'
+AND qa.dob_patient < '2019-01-01')
+OR qa.dob_patient is NULL
+ORDER BY qa.id_patient
