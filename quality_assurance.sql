@@ -3,19 +3,21 @@
  * therefore action is required, the field will read '1'. Otherwise the field will be null. Note that a single 
  * patient can have more than one genetic test / pregnancy etc. If any attribute of the patient is flagged by a 
  * query, a '1' will show for that query aside the patient case in the output table. In most cases, it should be 
- * straight forward for registration staff to find the record which requires ammending. However, the individual 
- * query scipts can be run if more information about a specific patient case is required. These scripts have 
+ * straight forward for registration staff to find the record which requires amending. However, the individual 
+ * query scripts can be run if more information about a specific patient case is required. These scripts have 
  * been designed to run with no filters, using a date range and for individual patiend_ids as required.  
  */
 /* The patient id and result column from each query table (created below) is selected. The patient ids are
  * coalesced and later grouped so one row identifies all issues with a single case. Throughout the script, each
  * query table is linked to the previous using the patient id. The final completed table is selected as 'qa' so 
- * it can be filtered by date. 
+ * it can be filtered by date. This script can be CUSTOMISED to limit results to patient cases which have a 
+ * date of birth within a specific range by uncommenting the respective line of code at the bottom of the script 
+ * and inserting appropriate dates within the quotation marks (''). 
  */
 SELECT * FROM (SELECT COALESCE (q1.patient_id, q2.patient_id, q3.patient_id, q4.patient_id, q5.patient_id, q6.patient_id, 
 q7.patient_id, q8.patient_id, q9.patient_id, q10.patient_id, q11.patient_id) AS id_patient, COALESCE 
-(q1.patient_DOB, q2.patient_DOB, q3.patient_DOB, q4.patient_DOB, q5.patient_DOB, q6.patient_DOB, 
-q7.patient_DOB, q8.patient_DOB, q9.patient_DOB, q10.patient_DOB, q11.patient_DOB) AS dob_patient, 
+(q1.patient_dob, q2.patient_dob, q3.patient_dob, q4.patient_dob, q5.patient_dob, q6.patient_dob, 
+q7.patient_dob, q8.patient_dob, q9.patient_dob, q10.patient_dob, q11.patient_dob) AS dob_patient, 
 MAX(q1.missing_sex) AS missing_sex, MAX(q2.missing_test_type) AS missing_test_type, 
 MAX(q3.missing_indication_category) AS missing_indication_category, MAX(q4.implausible_antenatal_sample) AS 
 implausible_antenatal_sample, MAX(q5.implausible_postnatal_sample) AS implausible_postnatal_sample, 
@@ -170,8 +172,8 @@ OR UPPER(gt.clinicalindication) LIKE '%CARRIER%')
 AND gt.indicationcategory IS NULL) q3
 ON q2.patient_id=q3.patient_id
 /* 
- * The fourth query table identifies cases that state that an antenatal sample was collected or recieved after 
- * the birth of the baby. Note that in a small number of cases (~1%), an anenatal sample type has been recorded 
+ * The fourth query table identifies cases that state that an antenatal sample was collected or received after 
+ * the birth of the baby. Note that in a small number of cases (~1%), an antenatal sample type has been recorded 
  * against parental / adult relative tests.
  */
 FULL OUTER JOIN  
@@ -189,7 +191,7 @@ AND (gt.collecteddate > p.birthdate1
 OR gt.receiveddate > p.birthdate1)) q4
 ON q3.patient_id=q4.patient_id
 /* 
- * The fifth query table identifies cases that state that a postnatal sample was collected, recieved or 
+ * The fifth query table identifies cases that state that a postnatal sample was collected, received or 
  * authorised before the birth of the baby. As above, if the script is not filtered by date below, there may be 
  * some adult contamination.
  */
@@ -325,9 +327,9 @@ ON q10.patient_id=q11.patient_id
 GROUP BY id_patient, dob_patient) AS qa
 /* 
  * The fully joined table of query outputs has been selected using 'qa' as an alias. This table can now be 
- * filtered by a date range and ordered by patient id. Change the date range as appropropriate for analysis. 
+ * filtered by a date range and ordered by patient id. Change the date range as appropriate for analysis.
+ * When filtering, this script has been designed to include patient cases for which the date of birth is unknown. 
+ * To exclude these cases, delete 'OR qa.dob_patient is NULL' from the newly uncommented code. 
  */
-WHERE (qa.dob_patient > '2016-12-31'
-AND qa.dob_patient < '2019-01-01')
-OR qa.dob_patient is NULL
+--WHERE (qa.dob_patient BETWEEN '' AND '') OR qa.dob_patient is NULL
 ORDER BY qa.id_patient
