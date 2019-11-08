@@ -3,9 +3,12 @@
  * or genetictestresult.report fields. Duplicate patient_ids may arise as a single patient can have more than
  * one genetic test. This script can be CUSTOMISED to search for a specific patient_id or for patients born 
  * within a specified date range by uncommenting the respective line of code at the bottom of the script and 
- * inserting appropriate id or dates within the quotation marks (''). */
+ * inserting appropriate id or dates within the quotation marks (''). When filtering by date, this script has 
+ * been designed to include patient cases for which the date of birth is unknown. To exlude these cases, delete 
+ * 'OR p.birthdate1 IS NULL' from the newly uncommented code. */
 
-SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, p.sex AS sex, gtr.karyotypearrayresult AS 
+SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, gtr.genetictestresultid AS 
+genetic_test_result_id, gt.genetictestid AS genetic_test_id, p.sex AS sex, gtr.karyotypearrayresult AS 
 karyotype_result, gt.clinicalindication AS clinical_indication, gtr.report AS report_comments
 FROM analysiscara.avc_genetictest gt
 LEFT JOIN analysiscara.avc_genetictestresult gtr ON gt.genetictestid=gtr.genetictestid
@@ -37,5 +40,5 @@ OR UPPER(gtr.report) LIKE '%MALE%'
 OR UPPER(gtr.report) LIKE '%FEMALE%')
 AND p.sex IS NULL 
 --AND p.patientid = ''
---AND p.birthdate1 BETWEEN '' AND ''
+--AND p.birthdate1 BETWEEN '' AND '' OR p.birthdate1 IS NULL
 ORDER BY patient_id

@@ -4,10 +4,13 @@
  * performed - could go down as ultrasound other. Duplicate patient_ids may arise as a single patient can have 
  * more than one test. This script can be CUSTOMISED to search for a specific patient_id or for patients born 
  * within a specified date range by uncommenting the respective line of code at the bottom of the script and 
- * inserting appropriate id or dates within the quotation marks (''). */
+ * inserting appropriate id or dates within the quotation marks (''). When filtering by date, this script has 
+ * been designed to include patient cases for which the date of birth is unknown. To exlude these cases, delete 
+ * 'OR p.birthdate1 IS NULL' from the newly uncommented code. */
 
-SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, tr.testtype AS test_type, tr.report AS 
-report_test_details, e.comments AS event_comments, um.code AS ultrasound_marker_code
+SELECT DISTINCT p.patientid AS patient_id, p.birthdate1 AS patient_dob, tr.testresultid AS test_result_id, 
+e.eventid AS event_id, tr.testtype AS test_type, tr.report AS report_test_details, e.comments AS event_comments, 
+um.code AS ultrasound_marker_code
 FROM springmvc3.testresult tr
 LEFT JOIN springmvc3.event e ON tr.testresultid=e.eventid
 LEFT JOIN springmvc3.patient p ON p.patientid=e.patientid 
@@ -61,5 +64,5 @@ OR UPPER(e.comments) LIKE '%WHOLE GENOME%'
 OR um.code IS NOT NULL)
 AND tr.testtype IS NULL
 --AND p.patientid = ''
---AND p.birthdate1 BETWEEN '' AND ''
+--AND p.birthdate1 BETWEEN '' AND '' OR p.birthdate1 IS NULL
 ORDER BY patient_id
